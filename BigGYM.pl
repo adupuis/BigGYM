@@ -19,7 +19,7 @@ GetOptions ("gh-login=s" => \$login,"gh-token=s" => \$token,"gh-owner=s" => \$ow
 my @channels = ('#genymobile');
 my $dns = POE::Component::Client::DNS->spawn();
 my $irc = POE::Component::IRC->spawn(
-    nick   => 'BigGYM',
+    nick   => 'BigGYM-'.$$,
     server => 'irc.freenode.net',
 );
 
