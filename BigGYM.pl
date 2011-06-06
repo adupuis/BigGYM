@@ -198,6 +198,7 @@ sub irc_public {
 	}
 	# Anyway, log what happen
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+	$year += 1900;
 	print $log_fh "[$year-$mon-$mday"."T"."$hour:$min:$sec] {$channel} <$nick> $what\n";
      return;
  }
