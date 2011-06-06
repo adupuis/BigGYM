@@ -7,6 +7,7 @@ use POE::Component::IRC;
 use POE::Component::IRC::Plugin::BotCommand;
 use Net::GitHub::V2::Issues;
 use Getopt::Long;
+use IO::File;
 use Data::Dumper;
 
 my $token = 'fake';
@@ -28,8 +29,9 @@ my $irc = POE::Component::IRC->spawn(
 # State variables
 my $default_project = 'adupuis/GYMActivity';
 my $last_commit = '';
-
-open($log_fh, ">>:encoding(UTF-8)", "$log_file") || die "can't open $log_file: $!";
+$log_fh = new IO::File;
+$log_fh->open(">>$log_file") or die "Error: $!";
+$log_fh->autoflush(1);
 
 open(my $fh, ">:encoding(UTF-8)", "BigGYM.pid") || die "can't open PID file: $!";
 print $fh $$;
