@@ -31,7 +31,7 @@ my $last_commit = '';
 
 open($log_fh, ">>:encoding(UTF-8)", "$log_file") || die "can't open $log_file: $!";
 
-open(my $fh, ">:encoding(UTF-8)", "BiGYM.pid") || die "can't open PID file: $!";
+open(my $fh, ">:encoding(UTF-8)", "BigGYM.pid") || die "can't open PID file: $!";
 print $fh $$;
 close($fh);
 
