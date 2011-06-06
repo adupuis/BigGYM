@@ -13,8 +13,10 @@ my $token = 'fake';
 my $login = 'superfake';
 my $owner = 'adupuis';
 my $repo = 'BigGYM';
+my $log_file = 'BigGYM.log';
+my $log_fh;
 
-GetOptions ("gh-login=s" => \$login,"gh-token=s" => \$token,"gh-owner=s" => \$owner,"gh-repo=s" => \$repo);
+GetOptions ("gh-login=s" => \$login,"gh-token=s" => \$token,"gh-owner=s" => \$owner,"gh-repo=s" => \$repo, "logfile=s" => \$log_file);
 
 my @channels = ('#genymobile');
 my $dns = POE::Component::Client::DNS->spawn();
@@ -27,6 +29,12 @@ my $irc = POE::Component::IRC->spawn(
 my $default_project = 'adupuis/GYMActivity';
 my $last_commit = '';
 
+open($log_fh, ">>:encoding(UTF-8)", "$log_file") || die "can't open $log_file: $!";
+
+open(my $fh, ">:encoding(UTF-8)", "BiGYM.pid") || die "can't open PID file: $!";
+print $fh $$;
+close($fh);
+
 my $issue = Net::GitHub::V2::Issues->new(
 	owner => $owner, repo => $repo,
 	login => $login, token => $token,
@@ -34,7 +42,7 @@ my $issue = Net::GitHub::V2::Issues->new(
 
 POE::Session->create(
     package_states => [
-        main => [ qw(_start irc_001 irc_botcmd_slap irc_botcmd_lookup dns_response irc_botcmd_issue irc_botcmd_set_default_project irc_botcmd_list_issues irc_public) ],
+        main => [ qw(_start irc_001 irc_botcmd_slap irc_botcmd_lookup dns_response irc_botcmd_issue irc_botcmd_set_default_project irc_botcmd_list_issues irc_botcmd_reboot irc_public) ],
     ],
 );
 
@@ -43,22 +51,24 @@ $poe_kernel->run();
 sub _start {
 	$irc->plugin_add('BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
 		Commands => {
-		slap   => 'Takes one argument: a nickname to slap.',
-		lookup => 'Takes two arguments: a record type (optional), and a host.',
-		issue  => 'Takes two arguments: an issue number and an action (optionnal)',
+		slap                => 'Takes one argument: a nickname to slap.',
+		lookup              => 'Takes two arguments: a record type (optional), and a host.',
+		issue               => 'Takes two arguments: an issue number and an action (optionnal)',
 		set_default_project => 'Takes one argument: the project name on GitHub (ex: adupuis/BigGYM)',
-		list_issues => 'Takes no argument. List all open issues for the default project',
+		list_issues         => 'Takes no argument. List all open issues for the default project',
+		reboot              => 'Takes no argument. Restart the bot.',
 		}
 	));
-	$irc->yield(register => qw(001 botcmd_slap botcmd_lookup botcmd_issue botcmd_set_default_project botcmd_list_issues public));
+	$irc->yield(register => qw(001 botcmd_slap botcmd_lookup botcmd_issue botcmd_set_default_project botcmd_list_issues botcmd_reboot public));
 	$irc->yield(connect => { });
 }
 
 # join some channels
 sub irc_001 {
-    $irc->yield(join => $_) for @channels;
-    $irc->yield(privmsg => $_ => "Hi there, BigGYM is in da place !") for @channels;
-    return;
+	print "Join channels.\n";
+	$irc->yield(join => $_) for @channels;
+	$irc->yield(privmsg => $_ => "Hi there, BigGYM is in da place !") for @channels;
+	return;
 }
 
 # the good old slap
@@ -94,6 +104,17 @@ sub irc_botcmd_issue {
 	print "DEBUG: $where => $arg\n";
 	$irc->yield(privmsg => $where, "issue $arg is at: https://github.com/$default_project/issues/$arg");
 	return;
+}
+
+sub irc_botcmd_reboot {
+	my $nick = (split /!/, $_[ARG0])[0];
+	my ($where, $arg) = @_[ARG1, ARG2];
+	if($nick eq "Arno[Slack]"){
+		exec("./start_biggym.sh");
+	}
+	else{
+		$irc->yield(privmsg => $where, "Beau geste $nick ;-)");
+	}
 }
 
 sub irc_botcmd_set_default_project {
@@ -152,7 +173,8 @@ sub irc_public {
 	if( $what =~ /^.*#(\d+).*$/ ){
 		$irc->yield(privmsg => $where, "issue $1 is at: https://github.com/$default_project/issues/$1");
 	}
-	elsif( $what =~ /^fix_issue\(([^,]+),(\d+),([^)]+)\)$/ ){ # This will match line like "fix_issue(adupuis/BigGYM,2,issue resolved)"
+	elsif( $what =~ /fix_issue\(([^,]+),(\d+),([^)]+)\)/ ){ # This will match line like "fix_issue(adupuis/BigGYM,2,issue resolved)"
+		print "Entering fix issue code\n";
 		my $project = $1;
 		my $issue_number = $2;
 		my $dev_comment = $3;
@@ -174,6 +196,9 @@ sub irc_public {
 		print "Last commit set to: $1\n";
 		$last_commit = $1;
 	}
+	# Anyway, log what happen
+	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+	print $log_fh "[$year-$mon-$mday"."T"."$hour:$min:$sec] {$channel} <$nick> $what\n";
      return;
  }
  
