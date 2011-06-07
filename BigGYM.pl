@@ -9,6 +9,7 @@ use Net::GitHub::V2::Issues;
 use Getopt::Long;
 use IO::File;
 use Data::Dumper;
+use IRC::Utils ':ALL';
 
 my $token = 'fake';
 my $login = 'superfake';
@@ -83,7 +84,9 @@ sub _start {
 sub irc_001 {
 	print "-- $botname joins channels.\n";
 	$irc->yield(join => $_) for @channels;
-	$irc->yield(privmsg => $_ => "Hi there, BigGYM is in da place !") for @channels;
+	my @greetings = ("Hi there, BigGYM is in da place !","BigGYM up & running.","Lock & load babe !","Not again...");
+	srand (time ^ $$ ^ unpack "%L*", `ps axww | gzip -f`);
+	$irc->yield(privmsg => $_ => $greetings[int(rand(scalar(@greetings)))]) for @channels;
 	return;
 }
 
@@ -126,7 +129,7 @@ sub irc_botcmd_reboot {
 	my $nick = (split /!/, $_[ARG0])[0];
 	my ($where, $arg) = @_[ARG1, ARG2];
 	if($nick eq "Arno[Slack]"){
-		exec("./start_biggym.sh");
+		system("./start_biggym.sh &");
 	}
 	else{
 		$irc->yield(privmsg => $where, "Beau geste $nick ;-)");
@@ -211,6 +214,11 @@ sub irc_public {
 	elsif( $what =~ /master \* (\w+)\s\// ){ #dupuis master * rf70c21c / 
 		print "Last commit set to: $1\n";
 		$last_commit = $1;
+	}
+	elsif( $what =~ /warning\(([^\)]+)\)/ ){
+		#my $message = '%C04 '.$1;
+		#$irc->yield(privmsg => $where, $message);
+		$irc->yield(ctcp => $where, "ACTION WARNING: $1");
 	}
 	# Anyway, log what happen
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
