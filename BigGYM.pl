@@ -16,15 +16,21 @@ my $owner = 'adupuis';
 my $repo = 'BigGYM';
 my $log_file = 'BigGYM.log';
 my $log_fh;
+my $version = '0.05';
+my $botname = 'BigGYM-'.$$;
+
+print "== Starting BigGYM v$version ==\n";
 
 GetOptions ("gh-login=s" => \$login,"gh-token=s" => \$token,"gh-owner=s" => \$owner,"gh-repo=s" => \$repo, "logfile=s" => \$log_file);
 
 my @channels = ('#genymobile');
 my $dns = POE::Component::Client::DNS->spawn();
 my $irc = POE::Component::IRC->spawn(
-    nick   => 'BigGYM-'.$$,
+    nick   => $botname,
     server => 'irc.freenode.net',
 );
+
+print "-- Openning log file: $log_file\n";
 
 # State variables
 my $default_project = 'adupuis/GYMActivity';
@@ -33,14 +39,20 @@ $log_fh = new IO::File;
 $log_fh->open(">>$log_file") or die "Error: $!";
 $log_fh->autoflush(1);
 
+print "-- Writting PID\n";
+
 open(my $fh, ">:encoding(UTF-8)", "BigGYM.pid") || die "can't open PID file: $!";
 print $fh $$;
 close($fh);
+
+print "-- Connecting to GitHub\n";
 
 my $issue = Net::GitHub::V2::Issues->new(
 	owner => $owner, repo => $repo,
 	login => $login, token => $token,
 );
+
+print "-- Starting POE session\n";
 
 POE::Session->create(
     package_states => [
@@ -51,6 +63,7 @@ POE::Session->create(
 $poe_kernel->run();
 
 sub _start {
+	print "-- Starting IRC session\n";
 	$irc->plugin_add('BotCommand', POE::Component::IRC::Plugin::BotCommand->new(
 		Commands => {
 		slap                => 'Takes one argument: a nickname to slap.',
@@ -62,12 +75,13 @@ sub _start {
 		}
 	));
 	$irc->yield(register => qw(001 botcmd_slap botcmd_lookup botcmd_issue botcmd_set_default_project botcmd_list_issues botcmd_reboot public));
+	print "-- Connecting to FreeNode\n";
 	$irc->yield(connect => { });
 }
 
 # join some channels
 sub irc_001 {
-	print "Join channels.\n";
+	print "-- $botname joins channels.\n";
 	$irc->yield(join => $_) for @channels;
 	$irc->yield(privmsg => $_ => "Hi there, BigGYM is in da place !") for @channels;
 	return;
@@ -194,7 +208,7 @@ sub irc_public {
 		$issue->close( $issue_number );
 		$irc->yield(privmsg => $where, "Issue $issue_number auto-closed with comment : ".$comment->{'id'}." - ".$comment->{'body'});
 	}
-	elsif( $what =~ /^.*master \* ([^\s]+)\s.*$/ ){ #dupuis master * rf70c21c / 
+	elsif( $what =~ /master \* (\w+)\s\// ){ #dupuis master * rf70c21c / 
 		print "Last commit set to: $1\n";
 		$last_commit = $1;
 	}
