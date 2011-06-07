@@ -218,7 +218,7 @@ sub irc_public {
 	elsif( $what =~ /warning\(([^\)]+)\)/ ){
 		#my $message = '%C04 '.$1;
 		#$irc->yield(privmsg => $where, $message);
-		$irc->yield(ctcp => $where, "ACTION WARNING: $1");
+		$irc->yield(notice => $where, "*WARNING* $1");
 	}
 	# Anyway, log what happen
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
