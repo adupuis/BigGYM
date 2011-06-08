@@ -17,14 +17,14 @@ my $owner = 'adupuis';
 my $repo = 'BigGYM';
 my $log_file = 'BigGYM.log';
 my $log_fh;
-my $version = '0.05';
+my $version = '0.07';
 my $botname = 'BigGYM-'.$$;
+my @channels = ('#genymobile');
 
 print "== Starting BigGYM v$version ==\n";
 
-GetOptions ("gh-login=s" => \$login,"gh-token=s" => \$token,"gh-owner=s" => \$owner,"gh-repo=s" => \$repo, "logfile=s" => \$log_file);
+GetOptions ("gh-login=s" => \$login,"gh-token=s" => \$token,"gh-owner=s" => \$owner,"gh-repo=s" => \$repo, "logfile=s" => \$log_file, "botname=s" => \$botname, "channels=s" => \@channels);
 
-my @channels = ('#genymobile');
 my $dns = POE::Component::Client::DNS->spawn();
 my $irc = POE::Component::IRC->spawn(
     nick   => $botname,
