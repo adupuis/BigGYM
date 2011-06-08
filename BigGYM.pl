@@ -188,7 +188,7 @@ sub irc_public {
 	my ($sender, $who, $where, $what) = @_[SENDER, ARG0 .. ARG2];
 	my $nick = ( split /!/, $who )[0];
 	my $channel = $where->[0];
-	print "DEBUG: We are in public with $sender, $nick, $channel,$what\n";
+# 	print "DEBUG: We are in public with $sender, $nick, $channel,$what\n";
 	if( $what =~ /^.*#(\d+).*$/ ){
 		$irc->yield(privmsg => $where, "issue $1 is at: https://github.com/$default_project/issues/$1");
 	}
@@ -211,7 +211,7 @@ sub irc_public {
 		$issue->close( $issue_number );
 		$irc->yield(privmsg => $where, "Issue $issue_number auto-closed with comment : ".$comment->{'id'}." - ".$comment->{'body'});
 	}
-	elsif( $what =~ /master \* (\w+)\s\// ){ #dupuis master * rf70c21c / 
+	elsif( $what =~ /master\s\*\s(\w+)/ ){ #dupuis master * rf70c21c / 
 		print "Last commit set to: $1\n";
 		$last_commit = $1;
 	}
@@ -219,6 +219,9 @@ sub irc_public {
 		#my $message = '%C04 '.$1;
 		#$irc->yield(privmsg => $where, $message);
 		$irc->yield(notice => $where, "*WARNING* $1");
+	}
+	else {
+		print "DEBUG: Nothing to do with : $nick, $channel,$what\n";
 	}
 	# Anyway, log what happen
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
