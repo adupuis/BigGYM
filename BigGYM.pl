@@ -211,7 +211,7 @@ sub irc_public {
 		$issue->close( $issue_number );
 		$irc->yield(privmsg => $where, "Issue $issue_number auto-closed with comment : ".$comment->{'id'}." - ".$comment->{'body'});
 	}
-	elsif( $what =~ /master\s\*\s(\w+)/ ){ #dupuis master * rf70c21c / 
+	elsif( $what =~ /master[^r]+(r\w+)/ ){ #dupuis master * rf70c21c / 
 		print "Last commit set to: $1\n";
 		$last_commit = $1;
 	}
