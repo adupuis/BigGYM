@@ -23,7 +23,7 @@ my @channels = ('#genymobile');
 
 print "== Starting BigGYM v$version ==\n";
 
-GetOptions ("gh-login=s" => \$login,"gh-token=s" => \$token,"gh-owner=s" => \$owner,"gh-repo=s" => \$repo, "logfile=s" => \$log_file, "botname=s" => \$botname, "channels=s" => \@channels);
+GetOptions ("gh-login=s" => \$login,"gh-token=s" => \$token,"gh-owner=s" => \$owner,"gh-repo=s" => \$repo, "logfile=s" => \$log_file, "botname=s" => \$botname, "channel=s" => \@channels);
 
 my $dns = POE::Component::Client::DNS->spawn();
 my $irc = POE::Component::IRC->spawn(
@@ -216,9 +216,9 @@ sub irc_public {
 		$last_commit = $1;
 	}
 	elsif( $what =~ /warning\(([^\)]+)\)/ ){
-		#my $message = '%C04 '.$1;
-		#$irc->yield(privmsg => $where, $message);
-		$irc->yield(notice => $where, "*WARNING* $1");
+		my $message = BOLD.RED.$1;
+		$irc->yield(privmsg => $where, $message);
+		#$irc->yield(notice => $where, "*WARNING* $1");
 	}
 	else {
 		print "DEBUG: Nothing to do with : $nick, $channel,$what\n";
