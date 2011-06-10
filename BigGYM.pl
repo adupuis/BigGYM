@@ -156,15 +156,17 @@ sub irc_botcmd_set_default_project {
 sub irc_botcmd_list_issues {
 	my $nick = (split /!/, $_[ARG0])[0];
 	my $where = $_[ARG1];
-	$irc->yield(privmsg => $where, "---------------------------\n");
+	$irc->yield(privmsg => $where, BOLD."---------------------------\n".BOLD);
 	foreach my $iss (@{$issue->list('open')}){
 # 		print Data::Dumper::Dumper($iss),"\n";
-		$irc->yield(privmsg => $where, "Number: ".$iss->{'number'}."\n");
-		$irc->yield(privmsg => $where, "Title : ".$iss->{'title'}."\n");
-		$irc->yield(privmsg => $where, "Body  : ".$iss->{'body'}."\n");
-		$irc->yield(privmsg => $where, "URL   : ".$iss->{'html_url'}."\n");
-		$irc->yield(privmsg => $where, "Tags  : ".join(',',@{$iss->{'labels'}})."\n");
-		$irc->yield(privmsg => $where, "---------------------------\n");
+		my $body = $iss->{'body'};
+		$body=~s/\n/ /g;
+		$irc->yield(privmsg => $where, BOLD."Number: ".BOLD.$iss->{'number'}."\n");
+		$irc->yield(privmsg => $where, BOLD."Title : ".BOLD.$iss->{'title'}."\n");
+		$irc->yield(privmsg => $where, BOLD."Body  : ".BOLD.$body."\n");
+		$irc->yield(privmsg => $where, BOLD."URL   : ".BOLD.$iss->{'html_url'}."\n");
+		$irc->yield(privmsg => $where, BOLD."Tags  : ".BOLD.join(',',@{$iss->{'labels'}})."\n");
+		$irc->yield(privmsg => $where, BOLD."---------------------------\n".BOLD);
 	}
 	return;
 }
@@ -188,9 +190,9 @@ sub irc_public {
 	my ($sender, $who, $where, $what) = @_[SENDER, ARG0 .. ARG2];
 	my $nick = ( split /!/, $who )[0];
 	my $channel = $where->[0];
-# 	print "DEBUG: We are in public with $sender, $nick, $channel,$what\n";
+	$what = strip_color($what) if( has_color($what) );
 	if( $what =~ /^.*#(\d+).*$/ ){
-		$irc->yield(privmsg => $where, "issue $1 is at: https://github.com/$default_project/issues/$1");
+		$irc->yield(privmsg => $where, "issue ".BOLD.BLUE."$1".BLUE.BOLD." is at: https://github.com/$default_project/issues/$1");
 	}
 	elsif( $what =~ /fix_issue\(([^,]+),(\d+),([^)]+)\)/ ){ # This will match line like "fix_issue(adupuis/BigGYM,2,issue resolved)"
 		print "Entering fix issue code\n";
@@ -209,9 +211,9 @@ sub irc_public {
 		}
 		my $comment = $issue->comment( $issue_number, "Issue fixed in commit [master $last_commit]\nDev comment is :\n$dev_comment\n\nIssue closed automatically by BigGYM." );
 		$issue->close( $issue_number );
-		$irc->yield(privmsg => $where, "Issue $issue_number auto-closed with comment : ".$comment->{'id'}." - ".$comment->{'body'});
+		$irc->yield(privmsg => $where, "Issue ".BOLD.BLUE."$issue_number".BLUE.BOLD." auto-closed with comment : ".$comment->{'id'}." - ".$comment->{'body'});
 	}
-	elsif( $what =~ /master[^r]+(r\w+)/ ){ #dupuis master * rf70c21c / 
+	elsif( $what =~ /master[^r]+r[^\w]*(\w+)/ ){ #dupuis master * rf70c21c / 
 		print "Last commit set to: $1\n";
 		$last_commit = $1;
 	}
