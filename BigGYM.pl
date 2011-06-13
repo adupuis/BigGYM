@@ -17,7 +17,7 @@ my $owner = 'adupuis';
 my $repo = 'BigGYM';
 my $log_file = 'BigGYM.log';
 my $log_fh;
-my $version = '0.07';
+my $version = '0.08';
 my $botname = 'BigGYM-'.$$;
 my @channels = ('#genymobile');
 
@@ -57,7 +57,7 @@ print "-- Starting POE session\n";
 
 POE::Session->create(
     package_states => [
-        main => [ qw(_start irc_001 irc_botcmd_slap irc_botcmd_lookup dns_response irc_botcmd_issue irc_botcmd_set_default_project irc_botcmd_list_issues irc_botcmd_reboot irc_public) ],
+        main => [ qw(_start irc_001 irc_botcmd_slap irc_botcmd_lookup dns_response irc_botcmd_issue irc_botcmd_set_default_project irc_botcmd_list_issues irc_botcmd_reboot irc_botcmd_count_issues irc_botcmd_version irc_public) ],
     ],
 );
 
@@ -73,9 +73,11 @@ sub _start {
 		set_default_project => 'Takes one argument: the project name on GitHub (ex: adupuis/BigGYM)',
 		list_issues         => 'Takes no argument. List all open issues for the default project',
 		reboot              => 'Takes no argument. Restart the bot.',
+		version             => 'Takes no argument. State the bot version number.',
+		count_issues        => 'Takes no argument. State the number of opened issues in the default project.',
 		}
 	));
-	$irc->yield(register => qw(001 botcmd_slap botcmd_lookup botcmd_issue botcmd_set_default_project botcmd_list_issues botcmd_reboot public));
+	$irc->yield(register => qw(001 botcmd_slap botcmd_lookup botcmd_issue botcmd_set_default_project botcmd_list_issues botcmd_reboot botcmd_count_issues botcmd_version public));
 	print "-- Connecting to FreeNode\n";
 	$irc->yield(connect => { });
 }
@@ -95,6 +97,14 @@ sub irc_botcmd_slap {
     my $nick = (split /!/, $_[ARG0])[0];
     my ($where, $arg) = @_[ARG1, ARG2];
     $irc->yield(ctcp => $where, "ACTION slaps $arg");
+    return;
+}
+
+# version number
+sub irc_botcmd_version {
+    my $nick = (split /!/, $_[ARG0])[0];
+    my ($where, $arg) = @_[ARG1, ARG2];
+    $irc->yield(privmsg => $where, "BigGYM current version is ".BOLD."v".GREEN.$version.GREEN.BOLD);
     return;
 }
 
@@ -158,7 +168,7 @@ sub irc_botcmd_list_issues {
 	my $where = $_[ARG1];
 	$irc->yield(privmsg => $where, BOLD."---------------------------\n".BOLD);
 	foreach my $iss (@{$issue->list('open')}){
-# 		print Data::Dumper::Dumper($iss),"\n";
+		print Data::Dumper::Dumper($iss),"\n";
 		my $body = $iss->{'body'};
 		$body=~s/\n/ /g;
 		$irc->yield(privmsg => $where, BOLD."Number: ".BOLD.$iss->{'number'}."\n");
@@ -168,6 +178,25 @@ sub irc_botcmd_list_issues {
 		$irc->yield(privmsg => $where, BOLD."Tags  : ".BOLD.join(',',@{$iss->{'labels'}})."\n");
 		$irc->yield(privmsg => $where, BOLD."---------------------------\n".BOLD);
 	}
+	return;
+}
+
+sub irc_botcmd_count_issues {
+	my $nick = (split /!/, $_[ARG0])[0];
+	my $where = $_[ARG1];
+	my $count = scalar(@{$issue->list('open')});
+	my $color = RED;
+	if($count == 0){
+		$color = GREEN;
+	}
+	elsif( $count < 5 ){
+		$color = BLUE;
+	}
+	elsif( $count < 10 ){
+		$color = ORANGE;
+	}
+	my $message = BOLD."There is currently ".$color."$count".$color.BOLD.BOLD." opened issues.".BOLD;
+	$irc->yield(privmsg => $where, $message);
 	return;
 }
 
@@ -188,30 +217,39 @@ sub dns_response {
 
 sub irc_public {
 	my ($sender, $who, $where, $what) = @_[SENDER, ARG0 .. ARG2];
-	my $nick = ( split /!/, $who )[0];
+	print "DEBUG: who=$who\n";
+	my ($nick,$mask) = split /!/, $who ;
 	my $channel = $where->[0];
 	$what = strip_color($what) if( has_color($what) );
 	if( $what =~ /^.*#(\d+).*$/ ){
 		$irc->yield(privmsg => $where, "issue ".BOLD.BLUE."$1".BLUE.BOLD." is at: https://github.com/$default_project/issues/$1");
 	}
 	elsif( $what =~ /fix_issue\(([^,]+),(\d+),([^)]+)\)/ ){ # This will match line like "fix_issue(adupuis/BigGYM,2,issue resolved)"
-		print "Entering fix issue code\n";
-		my $project = $1;
-		my $issue_number = $2;
-		my $dev_comment = $3;
-		if($project ne $default_project && $project =~ /^([^\/]+)\/(.+)$/ ){
-			$irc->yield(privmsg => $where, "Default project changed to $project");
-			$default_project = $project;
-			$owner = $1;
-			$repo = $2;
-			$issue = Net::GitHub::V2::Issues->new(
-				owner => $owner, repo => $repo,
-				login => $login, token => $token,
-			);
+		if($nick =~ /^CIA/ && $mask eq 'cia@cia.atheme.org'){
+			print "Entering fix issue code\n";
+			my $project = $1;
+			my $issue_number = $2;
+			my $dev_comment = $3;
+			if($project ne $default_project && $project =~ /^([^\/]+)\/(.+)$/ ){
+				$irc->yield(privmsg => $where, "Default project changed to $project");
+				$default_project = $project;
+				$owner = $1;
+				$repo = $2;
+				$issue = Net::GitHub::V2::Issues->new(
+					owner => $owner, repo => $repo,
+					login => $login, token => $token,
+				);
+			}
+			my $comment = $issue->comment( $issue_number, "Issue fixed in commit [master $last_commit]\nDev comment is :\n$dev_comment\n\nIssue closed automatically by BigGYM." );
+			$issue->close( $issue_number );
+			$irc->yield(privmsg => $where, "Issue ".BOLD.BLUE."$issue_number".BLUE.BOLD." auto-closed with comment : ");
+			foreach(split(/\n/,$comment->{'body'})){
+				$irc->yield(privmsg => $where, $_);
+			}
 		}
-		my $comment = $issue->comment( $issue_number, "Issue fixed in commit [master $last_commit]\nDev comment is :\n$dev_comment\n\nIssue closed automatically by BigGYM." );
-		$issue->close( $issue_number );
-		$irc->yield(privmsg => $where, "Issue ".BOLD.BLUE."$issue_number".BLUE.BOLD." auto-closed with comment : ".$comment->{'id'}." - ".$comment->{'body'});
+		else{
+			$irc->yield(privmsg => $where, BOLD.ORANGE."CIA bots are the only one allowed to auto_close issues.".ORANGE.BOLD);
+		}
 	}
 	elsif( $what =~ /master[^r]+r[^\w]*(\w+)/ ){ #dupuis master * rf70c21c / 
 		print "Last commit set to: $1\n";
