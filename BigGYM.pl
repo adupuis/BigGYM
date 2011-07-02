@@ -20,6 +20,8 @@ my $log_fh;
 my $version = '0.08';
 my $botname = 'BigGYM-'.$$;
 my @channels = ('#genymobile');
+my $default_project = 'adupuis/BigGYM';
+my $last_commit = '';
 
 print "== Starting BigGYM v$version ==\n";
 
@@ -33,9 +35,6 @@ my $irc = POE::Component::IRC->spawn(
 
 print "-- Openning log file: $log_file\n";
 
-# State variables
-my $default_project = 'adupuis/GYMActivity';
-my $last_commit = '';
 $log_fh = new IO::File;
 $log_fh->open(">>$log_file") or die "Error: $!";
 $log_fh->autoflush(1);
@@ -225,26 +224,39 @@ sub irc_public {
 		$irc->yield(privmsg => $where, "issue ".BOLD.BLUE."$1".BLUE.BOLD." is at: https://github.com/$default_project/issues/$1");
 	}
 	elsif( $what =~ /fix_issue\(([^,]+),(\d+),([^)]+)\)/ ){ # This will match line like "fix_issue(adupuis/BigGYM,2,issue resolved)"
-		if($nick =~ /^CIA/ && $mask eq 'cia@cia.atheme.org'){
-			print "Entering fix issue code\n";
-			my $project = $1;
-			my $issue_number = $2;
-			my $dev_comment = $3;
-			if($project ne $default_project && $project =~ /^([^\/]+)\/(.+)$/ ){
-				$irc->yield(privmsg => $where, "Default project changed to $project");
-				$default_project = $project;
-				$owner = $1;
-				$repo = $2;
-				$issue = Net::GitHub::V2::Issues->new(
-					owner => $owner, repo => $repo,
-					login => $login, token => $token,
-				);
+		print "DEBUG: Entering fix issue code\n";
+		my $project = $1;
+		my $issue_number = $2;
+		my $dev_comment = $3;
+		print "DEBUG: project=$project\n";
+		print "DEBUG: issue_number=$issue_number\n";
+		print "DEBUG: dev_comment=$dev_comment\n";
+		if($nick =~ /^CIA/ && $mask =~ /cia\.atheme\.org/i){
+			if( defined($last_commit) && $last_commit ){
+				if($project ne $default_project && $project =~ /^([^\/]+)\/(.+)$/ ){
+					print "DEBUG: project in fix_issue is not the same as default => changing default.\n";
+					$irc->yield(privmsg => $where, "Default project changed to $project");
+					$default_project = $project;
+					$owner = $1;
+					$repo = $2;
+					print "DEBUG: new default project is $default_project\n";
+					print "DEBUG: re-creating Net::GitHub object with owner=$owner and repo=$repo\n";
+					print "DEBUG: login=$login token=$token\n";
+					$issue = Net::GitHub::V2::Issues->new(
+						owner => $owner, repo => $repo,
+						login => $login, token => $token,
+					);
+				}
+				my $comment = $issue->comment( $issue_number, "Issue fixed in commit [master $last_commit]\nDev comment is :\n$dev_comment\n\nIssue closed automatically by BigGYM." );
+				$issue->close( $issue_number );
+				$irc->yield(privmsg => $where, "Issue ".BOLD.BLUE."$issue_number".BLUE.BOLD." auto-closed with comment : ");
+				foreach(split(/\n/,$comment->{'body'})){
+					$irc->yield(privmsg => $where, $_);
+				}
+				$last_commit = undef;
 			}
-			my $comment = $issue->comment( $issue_number, "Issue fixed in commit [master $last_commit]\nDev comment is :\n$dev_comment\n\nIssue closed automatically by BigGYM." );
-			$issue->close( $issue_number );
-			$irc->yield(privmsg => $where, "Issue ".BOLD.BLUE."$issue_number".BLUE.BOLD." auto-closed with comment : ");
-			foreach(split(/\n/,$comment->{'body'})){
-				$irc->yield(privmsg => $where, $_);
+			else{
+				$irc->yield(privmsg => $where, BOLD.ORANGE."No master commit detected, impossible to fix issues.".ORANGE.BOLD);
 			}
 		}
 		else{
@@ -255,13 +267,23 @@ sub irc_public {
 		print "Last commit set to: $1\n";
 		$last_commit = $1;
 	}
-	elsif( $what =~ /warning\(([^\)]+)\)/ ){
-		my $message = BOLD.RED.$1;
-		$irc->yield(privmsg => $where, $message);
-		#$irc->yield(notice => $where, "*WARNING* $1");
-	}
-	else {
-		print "DEBUG: Nothing to do with : $nick, $channel,$what\n";
+	elsif( my @matches = $what =~ /(w[arnig]*|i[nfo]*|a[nounce]*)\(([^\)]+)\)/g ){
+		print Data::Dumper::Dumper(@matches),"\n";
+		my $cmd = $1;
+		my $msg = $2;
+		my $coloured_message = '';
+		for(my $k=0; $k <= $#matches; $k+=2){
+			if( $matches[$k] =~ /^w[arnig]*/ ){
+				$coloured_message .= RED.$matches[$k+1].RED;
+			}
+			elsif( $matches[$k] =~ /^i[nfo]*/ ){
+				$coloured_message .= BLUE.$matches[$k+1].BLUE;
+			}
+			elsif( $matches[$k] =~ /^a[nounce]*/ ){
+				$coloured_message .= GREEN.$matches[$k+1].GREEN;
+			}
+		}
+		$irc->yield(privmsg => $where, BOLD.$coloured_message.BOLD) if($coloured_message ne '');
 	}
 	# Anyway, log what happen
 	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
